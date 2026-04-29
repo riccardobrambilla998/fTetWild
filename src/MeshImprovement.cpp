@@ -1375,18 +1375,63 @@ void floatTetWild::apply_sizingfield(Mesh& mesh, AABBWrapper& tree)
     logger().debug("Applying sizing field...");
 
     auto& tet_vertices = mesh.tet_vertices;
-    auto& tets         = mesh.tets;
+    // Copilot fix =========================================================
 
-    cout << "ideal edge length = " << mesh.params.ideal_edge_length << endl;
+    const auto& V_in   = mesh.params.V_sizing_field;
+    const auto& T_in   = mesh.params.T_sizing_field;
+    const auto& values = mesh.params.values_sizing_field;
+
+    if (V_in.rows() == 0 || T_in.rows() == 0 || values.rows() == 0) {
+        logger().warn("Sizing field requested but background mesh data is empty. Skipping.");
+        return;
+    }
+
+    GEO::Mesh bg_mesh;
+    bg_mesh.vertices.clear();
+    bg_mesh.vertices.create_vertices((int)V_in.rows() / 3);
+    for (int i = 0; i < V_in.rows() / 3; i++) {
+        GEO::vec3& p = bg_mesh.vertices.point(i);
+        for (int j = 0; j < 3; j++)
+            p[j] = V_in(i * 3 + j);
+    }
+
+    bg_mesh.cells.clear();
+    bg_mesh.cells.create_tets((int)T_in.rows() / 4);
+    for (int i = 0; i < T_in.rows() / 4; i++) {
+        for (int j = 0; j < 4; j++)
+            bg_mesh.cells.set_vertex(i, j, T_in(i * 4 + j));
+    }
+
+    GEO::MeshCellsAABB bg_aabb(bg_mesh, false);
+    // End of Copilot fix =========================================================
 
     for (auto& p : tet_vertices) {
         if (p.is_removed)
             continue;
         p.sizing_scalar = 1;  // reset
-        // BUG: quite sure this the method that brakes down
-        cout << "p.pos = " << p.pos.transpose() << endl;
-        double value = mesh.params.get_sizing_field_value(p.pos);
-        cout << "value = " << value << endl;
+        // Copilot fix ================================================================
+        GEO::vec3 geo_p(p.pos[0], p.pos[1], p.pos[2]);
+        int       bg_t_id = bg_aabb.containing_tet(geo_p);
+        if (bg_t_id == GEO::MeshCellsAABB::NO_TET)
+            continue;
+
+        std::array<Vector3, 4> vs;
+        for (int j = 0; j < 4; j++) {
+            const int n_id = T_in(bg_t_id * 4 + j);
+            vs[j]          = Vector3(V_in(n_id * 3), V_in(n_id * 3 + 1), V_in(n_id * 3 + 2));
+        }
+
+        double value = 0;
+        for (int j = 0; j < 4; j++) {
+            Vector3 n = ((vs[(j + 1) % 4] - vs[j]).cross(vs[(j + 2) % 4] - vs[j])).normalized();
+            double  d = (vs[(j + 3) % 4] - vs[j]).dot(n);
+            if (d == 0)
+                continue;
+            double weight = abs((p.pos - vs[j]).dot(n) / d);
+            value += weight * values(T_in(bg_t_id * 4 + (j + 3) % 4));
+        }
+        // End of Copilot fix =========================================================
+
         if (value > 0) {
             p.sizing_scalar = value / mesh.params.ideal_edge_length;
         }
@@ -1403,20 +1448,16 @@ void floatTetWild::apply_sizingfield(Mesh& mesh, AABBWrapper& tree)
             break;
         num_tets = tmp_num_tets;
     }
-
-    cout << "No more loops :(" << endl;
 }
 
 void floatTetWild::apply_coarsening(Mesh& mesh, AABBWrapper& tree)
 {
     mesh.is_coarsening = true;
-    cout << "Maybe in here?" << endl;
     for (auto& v : mesh.tet_vertices) {
         if (v.is_removed)
             continue;
         v.sizing_scalar = 1;
     }
-    cout << "A bit further?" << endl;
     int tets_size = mesh.get_t_num();
     int stop_size = tets_size * 0.001;
     for (int i = 0; i < 20; i++) {
