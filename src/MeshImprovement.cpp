@@ -1377,13 +1377,16 @@ void floatTetWild::apply_sizingfield(Mesh& mesh, AABBWrapper& tree)
     auto& tet_vertices = mesh.tet_vertices;
     auto& tets         = mesh.tets;
 
-    for (auto &p: tet_vertices) {
+    cout << "ideal edge length = " << mesh.params.ideal_edge_length << endl;
+
     for (auto& p : tet_vertices) {
         if (p.is_removed)
             continue;
         p.sizing_scalar = 1;  // reset
-        p.sizing_scalar = 1; //reset
+        // BUG: quite sure this the method that brakes down
+        cout << "p.pos = " << p.pos.transpose() << endl;
         double value = mesh.params.get_sizing_field_value(p.pos);
+        cout << "value = " << value << endl;
         if (value > 0) {
             p.sizing_scalar = value / mesh.params.ideal_edge_length;
         }
@@ -1400,18 +1403,20 @@ void floatTetWild::apply_sizingfield(Mesh& mesh, AABBWrapper& tree)
             break;
         num_tets = tmp_num_tets;
     }
+
+    cout << "No more loops :(" << endl;
 }
 
 void floatTetWild::apply_coarsening(Mesh& mesh, AABBWrapper& tree)
 {
     mesh.is_coarsening = true;
-
+    cout << "Maybe in here?" << endl;
     for (auto& v : mesh.tet_vertices) {
         if (v.is_removed)
             continue;
         v.sizing_scalar = 1;
     }
-
+    cout << "A bit further?" << endl;
     int tets_size = mesh.get_t_num();
     int stop_size = tets_size * 0.001;
     for (int i = 0; i < 20; i++) {
