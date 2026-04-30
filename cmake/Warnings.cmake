@@ -14,6 +14,9 @@ set(MY_FLAGS
         -Wextra
         -pedantic
 
+        # no narrowing conversion warnings
+        -Wno-narrowing
+
         # -Wconversion
         #-Wunsafe-loop-optimizations # broken with C++11 loops
         -Wunused
