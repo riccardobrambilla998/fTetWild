@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.20)
 project(FloatTetwild)
 # ##############################################################################
 
+cmake_policy(SET CMP0169 OLD)
+# find_package() uses <PackageName>_ROOT variables
+
 # Detects whether this is a top-level project
 get_directory_property(HAS_PARENT PARENT_DIRECTORY)
 if(HAS_PARENT)
